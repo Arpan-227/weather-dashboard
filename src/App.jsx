@@ -1,30 +1,73 @@
-import React, { useState, useEffect } from "react";
-import WeatherDashboard from "./components/WeatherDashboard";
+import { useEffect, useState } from "react";
+import axios from "axios";
 
 const App = () => {
-  const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem("theme") === "dark";
-  });
+  const [weatherData, setWeatherData] = useState(null);
+
+  const fetchWeatherByCoords = async (lat, lon) => {
+    try {
+      const apiKey = "8c468c2e312aeacdb8c01411373d1440";
+      const response = await axios.get(
+        `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`
+      );
+      setWeatherData(response.data);
+    } catch (error) {
+      console.error("Error fetching weather by coordinates:", error.message);
+    }
+  };
+
+  const fetchWeatherByCity = async (city) => {
+    try {
+      const apiKey = "8c468c2e312aeacdb8c01411373d1440";
+      const response = await axios.get(
+        `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric`
+      );
+      setWeatherData(response.data);
+    } catch (error) {
+      console.error("Error fetching weather by city:", error.message);
+    }
+  };
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", darkMode);
-    localStorage.setItem("theme", darkMode ? "dark" : "light");
-  }, [darkMode]);
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          fetchWeatherByCoords(latitude, longitude);
+        },
+        (error) => {
+          console.warn("Geolocation error:", error.message);
+          fetch("https://ip-api.com/json/")
+            .then((res) => res.json())
+            .then((data) => fetchWeatherByCity(data.city))
+            .catch((err) => {
+              console.error("IP location fetch failed:", err);
+              fetchWeatherByCity("Delhi");
+            });
+        }
+      );
+    } else {
+      console.warn("Geolocation not supported, using fallback.");
+      fetch("https://ip-api.com/json/")
+        .then((res) => res.json())
+        .then((data) => fetchWeatherByCity(data.city))
+        .catch(() => fetchWeatherByCity("Delhi"));
+    }
+  }, []);
 
   return (
-    <div className="min-h-screen transition-colors">
-      <div className="flex justify-between items-center px-4 py-2 bg-white dark:bg-gray-800 shadow-md">
-        <h1 className="text-xl font-bold text-gray-800 dark:text-white">
-          🌤️ Weather Dashboard
-        </h1>
-        <button
-          onClick={() => setDarkMode(!darkMode)}
-          className="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded"
-        >
-          {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
-        </button>
-      </div>
-      <WeatherDashboard />
+    <div className="p-4 text-center">
+      {weatherData ? (
+        <div>
+          <h2 className="text-3xl font-bold mb-2">{weatherData.name}</h2>
+          <p className="text-lg">🌡️ Temperature: {weatherData.main.temp} °C</p>
+          <p className="text-lg">☁️ Condition: {weatherData.weather[0].description}</p>
+          <p className="text-lg">💨 Wind: {weatherData.wind.speed} m/s</p>
+          <p className="text-lg">💧 Humidity: {weatherData.main.humidity}%</p>
+        </div>
+      ) : (
+        <p className="text-xl">Loading weather data...</p>
+      )}
     </div>
   );
 };
